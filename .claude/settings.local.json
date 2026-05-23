@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(explorer \"C:\\\\Users\\\\PC\\\\Desktop\\\\图生图prompt\")",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

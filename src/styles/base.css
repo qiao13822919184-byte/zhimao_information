@@ -1,0 +1,90 @@
+/* 基础重置与排版 */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --border: #e3e6ee;
+    --text: #1f2433;
+    --text-soft: #5a6377;
+    --text-mute: #8a93a6;
+    --primary: #c8102e;
+    --primary-hover: #a40d27;
+    --primary-soft: #fff1f3;
+    --success: #14a058;
+    --warning: #f0a020;
+    --danger: #d6371c;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 4px 18px rgba(20, 30, 60, 0.06);
+    --shadow-soft: 0 2px 8px rgba(20, 30, 60, 0.04);
+    --max-width: 880px;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+[x-cloak] { display: none !important; }
+
+button { font-family: inherit; cursor: pointer; }
+
+kbd {
+    background: #eef0f5;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 5px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.brand-name {
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 1px;
+    margin-right: 14px;
+}
+.brand-sub {
+    color: var(--text-soft);
+    font-size: 14px;
+}
+.header-actions { display: flex; gap: 10px; }
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    transition: all .15s;
+}
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+.btn-ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+.local-notice {
+    background: #fff8e1;
+    color: #8a6700;
+    border-bottom: 1px solid #ffe6a8;
+    padding: 10px 28px;
+    font-size: 13px;
+    text-align: center;
+}
+.local-notice strong { color: #6e4f00; }

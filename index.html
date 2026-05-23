@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>跨迅科技 · B2B 视频服务立项资料表</title>
+    <meta name="description" content="跨迅科技 B2B 工厂视频服务立项资料表 · 7 阶段引导式填写" />
+
+    <link rel="stylesheet" href="src/styles/base.css" />
+    <link rel="stylesheet" href="src/styles/form.css" />
+    <link rel="stylesheet" href="src/styles/components.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js" defer></script>
+
+    <!-- 唯一入口:main.js 内部以 ESM 形式 import Alpine,确保 formApp 在 Alpine.start() 前完成注册 -->
+    <script type="module" src="src/main.js"></script>
+</head>
+<body>
+    <div id="app" x-data="formApp" x-init="init()" x-cloak>
+
+        <header class="app-header">
+            <div class="brand">
+                <span class="brand-name">跨迅科技</span>
+                <span class="brand-sub">B2B 视频服务立项资料表</span>
+            </div>
+            <div class="header-actions">
+                <button type="button" class="btn-ghost" @click="saveDraftManually()" title="按 Esc 也可保存">
+                    保存草稿
+                </button>
+                <button type="button" class="btn-ghost danger" @click="confirmReset()">
+                    清空重填
+                </button>
+            </div>
+        </header>
+
+        <div class="local-notice" role="note">
+            草稿仅在<strong>本浏览器/本设备</strong>保留,换设备或清缓存会丢失。建议每完成一阶段下载一次进度副本。
+        </div>
+
+        <!-- 进度条 -->
+        <nav class="progress-bar" aria-label="填写进度">
+            <template x-for="stage in stages" :key="stage.id">
+                <div class="progress-segment"
+                     :class="{ active: stage.id === currentStage, done: stageDone(stage.id) }"
+                     :title="stageTooltip(stage.id)"
+                     @click="jumpToStage(stage.id)">
+                    <div class="progress-bullet">
+                        <span x-show="!stageDone(stage.id)" x-text="stage.id"></span>
+                        <span x-show="stageDone(stage.id)" aria-hidden="true">✓</span>
+                    </div>
+                    <div class="progress-label">
+                        <span class="progress-name" x-text="stage.name"></span>
+                        <span class="progress-count" x-text="`${stageProgress(stage.id).done}/${stageProgress(stage.id).total}`"></span>
+                    </div>
+                </div>
+            </template>
+        </nav>
+
+        <!-- 当前题目 -->
+        <main class="form-stage" x-show="ready">
+            <template x-if="currentField">
+                <section class="question-card" :data-stage="currentField.stage" :data-node="currentField.id">
+                    <div class="question-meta">
+                        <span class="stage-tag" x-text="`阶段 ${currentField.stage} · ${stageName(currentField.stage)}`"></span>
+                        <span class="node-order" x-text="`第 ${currentField.order} 题 / 共 ${totalCount} 题`"></span>
+                    </div>
+                    <h2 class="question-title">
+                        <span x-text="currentField.label"></span>
+                        <span class="required-mark" x-show="currentField.required">*</span>
+                    </h2>
+                    <p class="question-help" x-show="currentField.help" x-text="currentField.help"></p>
+
+                    <div class="question-body">
+                        <!-- ========== 基础控件 ========== -->
+                        <template x-if="['text','email','tel','url'].includes(currentField.component)">
+                            <input class="input" :type="currentField.component === 'text' ? 'text' : currentField.component"
+                                   :placeholder="currentField.placeholder || ''"
+                                   x-model="values[currentField.id]" />
+                        </template>
+
+                        <template x-if="currentField.component === 'textarea'">
+                            <textarea class="input textarea" rows="4"
+                                      :placeholder="currentField.placeholder || ''"
+                                      x-model="values[currentField.id]"></textarea>
+                        </template>
+
+                        <template x-if="currentField.component === 'number'">
+                            <input class="input" type="number"
+                                   :placeholder="currentField.placeholder || ''"
+                                   x-model.number="values[currentField.id]" />
+                        </template>
+
+                        <template x-if="currentField.component === 'year'">
+                            <input class="input" type="number" min="1900" max="2026" step="1"
+                                   placeholder="例:1999"
+                                   x-model.number="values[currentField.id]" />
+                        </template>
+
+                        <template x-if="currentField.component === 'select'">
+                            <select class="input" x-model="values[currentField.id]">
+                                <option value="">请选择</option>
+                                <template x-for="opt in currentField.options" :key="opt">
+                                    <option :value="opt" x-text="opt"></option>
+                                </template>
+                            </select>
+                        </template>
+
+                        <template x-if="currentField.component === 'radio'">
+                            <div class="radio-group">
+                                <template x-for="opt in currentField.options" :key="opt">
+                                    <label class="radio-pill">
+                                        <input type="radio" :name="currentField.id" :value="opt"
+                                               x-model="values[currentField.id]" />
+                                        <span x-text="opt"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="currentField.component === 'multi-select'">
+                            <div class="checkbox-group">
+                                <template x-for="opt in currentField.options" :key="(opt && opt.key) || opt">
+                                    <label class="check-pill">
+                                        <input type="checkbox"
+                                               :value="(opt && opt.key) || opt"
+                                               x-model="values[currentField.id]" />
+                                        <span x-text="(opt && opt.label) || opt"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="currentField.component === 'color'">
+                            <input class="input color" type="color" x-model="values[currentField.id]" />
+                        </template>
+
+                        <template x-if="currentField.component === 'date'">
+                            <input class="input" type="date" x-model="values[currentField.id]" />
+                        </template>
+                        <template x-if="currentField.component === 'time'">
+                            <input class="input" type="time" x-model="values[currentField.id]" />
+                        </template>
+
+                        <template x-if="currentField.component === 'switch'">
+                            <label class="switch">
+                                <input type="checkbox" x-model="values[currentField.id]" />
+                                <span class="switch-slider"></span>
+                                <span class="switch-text" x-text="values[currentField.id] ? '是' : '否'"></span>
+                            </label>
+                        </template>
+
+                        <!-- ========== 文件上传(顶层) ========== -->
+                        <template x-if="currentField.component === 'file'">
+                            <div class="file-uploader">
+                                <label class="file-drop">
+                                    <input type="file"
+                                           :accept="(currentField.accept || []).map(e=>'.'+e).join(',')"
+                                           :multiple="currentField.multiple || false"
+                                           @change="uploadTopLevelFile(currentField, $event)" />
+                                    <span class="file-drop-text">点击或拖拽上传</span>
+                                    <span class="file-drop-meta"
+                                          x-text="`允许:${(currentField.accept||[]).join('/') } · 单文件最大 ${formatSize(currentField.maxSize)}`"></span>
+                                </label>
+                                <!-- 已上传(多文件) -->
+                                <template x-if="currentField.multiple && Array.isArray(values[currentField.id])">
+                                    <ul class="file-list">
+                                        <template x-for="(ref, fi) in values[currentField.id]" :key="ref.ref">
+                                            <li class="file-item">
+                                                <span class="file-name" x-text="ref.name"></span>
+                                                <span class="file-size" x-text="formatSize(ref.size)"></span>
+                                                <button type="button" class="link" @click="previewFile(ref)">预览</button>
+                                                <button type="button" class="link danger"
+                                                        @click="removeFileFromList(values[currentField.id], fi)">删除</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                                <!-- 已上传(单文件) -->
+                                <template x-if="!currentField.multiple && isFileRef(values[currentField.id])">
+                                    <div class="file-item single">
+                                        <span class="file-name" x-text="values[currentField.id].name"></span>
+                                        <span class="file-size" x-text="formatSize(values[currentField.id].size)"></span>
+                                        <button type="button" class="link" @click="previewFile(values[currentField.id])">预览</button>
+                                        <button type="button" class="link danger"
+                                                @click="clearFileRef(values, currentField.id)">删除</button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- ========== dynamic-list(节点 3 品牌) ========== -->
+                        <template x-if="currentField.component === 'dynamic-list'">
+                            <div class="dyn-list">
+                                <template x-for="(_, idx) in values[currentField.id]" :key="idx">
+                                    <div class="dyn-list-row">
+                                        <input class="input" :placeholder="currentField.placeholder || ''"
+                                               x-model="values[currentField.id][idx]" />
+                                        <button type="button" class="link danger"
+                                                @click="removeListItem(currentField.id, idx)">移除</button>
+                                    </div>
+                                </template>
+                                <button type="button" class="btn-add"
+                                        @click="addListItem(currentField.id, currentField.max)"
+                                        x-text="currentField.addLabel || '+ 添加'"></button>
+                            </div>
+                        </template>
+
+                        <!-- ========== tag-input ========== -->
+                        <template x-if="currentField.component === 'tag-input'">
+                            <div class="tag-input"
+                                 x-data="{ buf: '' }">
+                                <div class="tag-list">
+                                    <template x-for="(tag, ti) in values[currentField.id]" :key="ti">
+                                        <span class="tag">
+                                            <span x-text="tag"></span>
+                                            <button type="button" class="tag-x"
+                                                    @click="removeTag(values[currentField.id], ti)">×</button>
+                                        </span>
+                                    </template>
+                                    <input class="tag-buf" x-model="buf"
+                                           placeholder="回车添加"
+                                           @keydown.enter.prevent="addTag(values[currentField.id], buf); buf=''" />
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ========== country-select(顶层,但实际只在卡片里出现;预留) ========== -->
+                        <template x-if="currentField.component === 'country-select'">
+                            <select class="input" x-model="values[currentField.id]">
+                                <option value="">请选择国家</option>
+                                <template x-for="c in countryOptions()" :key="c.code">
+                                    <option :value="c.code" x-text="c.zh + ' / ' + c.en"></option>
+                                </template>
+                            </select>
+                        </template>
+
+                        <!-- ========== sortable-list(节点 28) ========== -->
+                        <template x-if="currentField.component === 'sortable-list'">
+                            <div class="sortable-list">
+                                <template x-for="(item, idx) in values[currentField.id]" :key="idx + '-' + item">
+                                    <div class="sortable-row">
+                                        <span class="sortable-handle" title="拖动 / 用 ↑↓ 调整">≡</span>
+                                        <input class="input" :value="item"
+                                               @input="renameSortable(currentField.id, idx, $event.target.value)" />
+                                        <button type="button" class="btn-icon" title="上移"
+                                                @click="moveSortable(currentField.id, idx, idx-1)">↑</button>
+                                        <button type="button" class="btn-icon" title="下移"
+                                                @click="moveSortable(currentField.id, idx, idx+1)">↓</button>
+                                        <button type="button" class="link danger"
+                                                @click="removeSortableItem(currentField.id, idx)">移除</button>
+                                    </div>
+                                </template>
+                                <div class="sortable-add" x-data="{ buf: '' }">
+                                    <input class="input" placeholder="新节点名,回车添加" x-model="buf"
+                                           @keydown.enter.prevent="addSortableItem(currentField.id, buf); buf=''" />
+                                    <button type="button" class="btn"
+                                            @click="addSortableItem(currentField.id, buf); buf=''">添加</button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ========== composite(子字段组) ========== -->
+                        <template x-if="currentField.component === 'composite'">
+                            <div class="composite">
+                                <template x-for="sub in currentField.subFields" :key="sub.id">
+                                    <div class="composite-row"
+                                         x-show="!sub.showWhen || values[currentField.id][sub.showWhen.field] === sub.showWhen.equals">
+                                        <label class="sub-label">
+                                            <span x-text="sub.label"></span>
+                                            <span class="required-mark" x-show="sub.required">*</span>
+                                        </label>
+                                        <div class="sub-body">
+                                            <!-- 子字段渲染:复用 sub-field-dispatch 模板 -->
+                                            <template x-data="{ valuesRef: values[currentField.id], context: 'composite' }">
+                                                <span></span>
+                                            </template>
+                                            <!-- 内联分发(因 Alpine template 不易抽组件,直接写一层) -->
+
+                                            <template x-if="['text','email','tel','url'].includes(sub.type)">
+                                                <input class="input" :type="sub.type === 'text' ? 'text' : sub.type"
+                                                       :placeholder="sub.placeholder || ''"
+                                                       x-model="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'textarea'">
+                                                <textarea class="input textarea" rows="3"
+                                                          :placeholder="sub.placeholder || ''"
+                                                          x-model="values[currentField.id][sub.id]"></textarea>
+                                            </template>
+                                            <template x-if="sub.type === 'number'">
+                                                <input class="input" type="number"
+                                                       :placeholder="sub.placeholder || ''"
+                                                       x-model.number="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'year'">
+                                                <input class="input" type="number" min="1900" max="2026"
+                                                       x-model.number="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'date'">
+                                                <input class="input" type="date" x-model="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'time'">
+                                                <input class="input" type="time" x-model="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'color'">
+                                                <input class="input color" type="color"
+                                                       x-model="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'switch'">
+                                                <label class="switch">
+                                                    <input type="checkbox" x-model="values[currentField.id][sub.id]" />
+                                                    <span class="switch-slider"></span>
+                                                    <span class="switch-text"
+                                                          x-text="values[currentField.id][sub.id] ? '是' : '否'"></span>
+                                                </label>
+                                            </template>
+                                            <template x-if="sub.type === 'radio'">
+                                                <div class="radio-group">
+                                                    <template x-for="opt in sub.options" :key="opt">
+                                                        <label class="radio-pill">
+                                                            <input type="radio" :name="currentField.id+'_'+sub.id" :value="opt"
+                                                                   x-model="values[currentField.id][sub.id]" />
+                                                            <span x-text="opt"></span>
+                                                        </label>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="sub.type === 'select'">
+                                                <select class="input" x-model="values[currentField.id][sub.id]">
+                                                    <option value="">请选择</option>
+                                                    <template x-for="opt in sub.options" :key="opt">
+                                                        <option :value="opt" x-text="opt"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
+                                            <template x-if="sub.type === 'multi-select'">
+                                                <div class="checkbox-group">
+                                                    <template x-for="opt in (sub.bindsTo ? linkedOptions(sub.bindsTo, sub.bindsToKey || 'name') : sub.options)" :key="opt">
+                                                        <label class="check-pill">
+                                                            <input type="checkbox" :value="opt"
+                                                                   x-model="values[currentField.id][sub.id]" />
+                                                            <span x-text="opt"></span>
+                                                        </label>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="sub.type === 'tag-input'">
+                                                <div class="tag-input" x-data="{ buf: '' }">
+                                                    <div class="tag-list">
+                                                        <template x-for="(tag, ti) in values[currentField.id][sub.id]" :key="ti">
+                                                            <span class="tag">
+                                                                <span x-text="tag"></span>
+                                                                <button type="button" class="tag-x"
+                                                                        @click="removeTag(values[currentField.id][sub.id], ti)">×</button>
+                                                            </span>
+                                                        </template>
+                                                        <input class="tag-buf" x-model="buf" placeholder="回车添加"
+                                                               @keydown.enter.prevent="addTag(values[currentField.id][sub.id], buf); buf=''" />
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template x-if="sub.type === 'slider'">
+                                                <div class="slider-wrap">
+                                                    <input type="range" :min="sub.min" :max="sub.max" :step="sub.step || 1"
+                                                           x-model.number="values[currentField.id][sub.id]" />
+                                                    <span class="slider-val" x-text="(values[currentField.id][sub.id] ?? 0) + '%'"></span>
+                                                </div>
+                                            </template>
+                                            <template x-if="sub.type === 'cascade-region'">
+                                                <input class="input" placeholder="国-省-市-区(如:中国-广东-江门-鹤山)"
+                                                       x-model="values[currentField.id][sub.id]" />
+                                            </template>
+                                            <template x-if="sub.type === 'file'">
+                                                <div class="file-uploader">
+                                                    <label class="file-drop">
+                                                        <input type="file"
+                                                               :accept="(sub.accept||[]).map(e=>'.'+e).join(',')"
+                                                               :multiple="sub.multiple || false"
+                                                               @change="uploadIntoComposite(currentField, sub.id, sub.multiple, sub.accept, sub.maxSize, $event)" />
+                                                        <span class="file-drop-text">点击上传</span>
+                                                        <span class="file-drop-meta"
+                                                              x-text="`允许:${(sub.accept||[]).join('/')} · 最大 ${formatSize(sub.maxSize)}`"></span>
+                                                    </label>
+                                                    <template x-if="sub.multiple && Array.isArray(values[currentField.id][sub.id])">
+                                                        <ul class="file-list">
+                                                            <template x-for="(ref, fi) in values[currentField.id][sub.id]" :key="ref.ref">
+                                                                <li class="file-item">
+                                                                    <span class="file-name" x-text="ref.name"></span>
+                                                                    <span class="file-size" x-text="formatSize(ref.size)"></span>
+                                                                    <button type="button" class="link" @click="previewFile(ref)">预览</button>
+                                                                    <button type="button" class="link danger"
+                                                                            @click="removeFileFromList(values[currentField.id][sub.id], fi)">删除</button>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </template>
+                                                    <template x-if="!sub.multiple && isFileRef(values[currentField.id][sub.id])">
+                                                        <div class="file-item single">
+                                                            <span class="file-name" x-text="values[currentField.id][sub.id].name"></span>
+                                                            <span class="file-size" x-text="formatSize(values[currentField.id][sub.id].size)"></span>
+                                                            <button type="button" class="link" @click="previewFile(values[currentField.id][sub.id])">预览</button>
+                                                            <button type="button" class="link danger"
+                                                                    @click="clearFileRef(values[currentField.id], sub.id)">删除</button>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <!-- sub 嵌套 dynamic-card(节点 35 客户证言) -->
+                                            <template x-if="sub.type === 'dynamic-card'">
+                                                <div class="dyn-card-list nested">
+                                                    <template x-for="(card, ci) in (values[currentField.id][sub.id] || [])" :key="ci">
+                                                        <div class="dyn-card">
+                                                            <div class="dyn-card-head">
+                                                                <span class="dyn-card-title" x-text="`#${ci + 1}`"></span>
+                                                                <button type="button" class="link danger"
+                                                                        @click="removeNestedCard(values[currentField.id], sub.id, ci)">移除</button>
+                                                            </div>
+                                                            <template x-for="sub2 in sub.cardTemplate" :key="sub2.id">
+                                                                <div class="composite-row">
+                                                                    <label class="sub-label">
+                                                                        <span x-text="sub2.label"></span>
+                                                                        <span class="required-mark" x-show="sub2.required">*</span>
+                                                                    </label>
+                                                                    <div class="sub-body">
+                                                                        <template x-if="['text','email','tel','url'].includes(sub2.type)">
+                                                                            <input class="input" :type="sub2.type === 'text' ? 'text' : sub2.type"
+                                                                                   x-model="card[sub2.id]" />
+                                                                        </template>
+                                                                        <template x-if="sub2.type === 'textarea'">
+                                                                            <textarea class="input textarea" rows="3" x-model="card[sub2.id]"></textarea>
+                                                                        </template>
+                                                                        <template x-if="sub2.type === 'radio'">
+                                                                            <div class="radio-group">
+                                                                                <template x-for="opt in sub2.options" :key="opt">
+                                                                                    <label class="radio-pill">
+                                                                                        <input type="radio"
+                                                                                               :name="currentField.id+'_'+sub.id+'_'+ci+'_'+sub2.id"
+                                                                                               :value="opt" x-model="card[sub2.id]" />
+                                                                                        <span x-text="opt"></span>
+                                                                                    </label>
+                                                                                </template>
+                                                                            </div>
+                                                                        </template>
+                                                                        <template x-if="sub2.type === 'country-select'">
+                                                                            <select class="input" x-model="card[sub2.id]">
+                                                                                <option value="">请选择国家</option>
+                                                                                <template x-for="c in countryOptions()" :key="c.code">
+                                                                                    <option :value="c.code" x-text="c.zh + ' / ' + c.en"></option>
+                                                                                </template>
+                                                                            </select>
+                                                                        </template>
+                                                                        <template x-if="sub2.type === 'file'">
+                                                                            <div class="file-uploader">
+                                                                                <label class="file-drop">
+                                                                                    <input type="file"
+                                                                                           :accept="(sub2.accept||[]).map(e=>'.'+e).join(',')"
+                                                                                           @change="(async () => {
+                                                                                               const fl = $event.target.files; if (!fl.length) return;
+                                                                                               const v = _validateFiles(sub2, fl);
+                                                                                               if (v !== true) { showToast(v); $event.target.value=''; return; }
+                                                                                               const refs = await _uploadFiles(currentField.id, ['composite-card', sub.id, ci, sub2.id], fl, false);
+                                                                                               card[sub2.id] = refs; $event.target.value='';
+                                                                                           })()" />
+                                                                                    <span class="file-drop-text">点击上传</span>
+                                                                                </label>
+                                                                                <template x-if="isFileRef(card[sub2.id])">
+                                                                                    <div class="file-item single">
+                                                                                        <span class="file-name" x-text="card[sub2.id].name"></span>
+                                                                                        <button type="button" class="link"
+                                                                                                @click="previewFile(card[sub2.id])">预览</button>
+                                                                                        <button type="button" class="link danger"
+                                                                                                @click="clearFileRef(card, sub2.id)">删除</button>
+                                                                                    </div>
+                                                                                </template>
+                                                                            </div>
+                                                                        </template>
+                                                                    </div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    <button type="button" class="btn-add"
+                                                            @click="addNestedCard(values[currentField.id], sub.id, sub.cardTemplate)">
+                                                        + 添加一组
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- ========== dynamic-card ========== -->
+                        <template x-if="currentField.component === 'dynamic-card'">
+                            <div class="dyn-card-list">
+                                <template x-for="(card, ci) in values[currentField.id]" :key="ci">
+                                    <div class="dyn-card">
+                                        <div class="dyn-card-head">
+                                            <span class="dyn-card-title" x-text="`#${ci + 1}`"></span>
+                                            <button type="button" class="link danger"
+                                                    @click="removeCardItem(currentField.id, ci)">移除此项</button>
+                                        </div>
+                                        <template x-for="sub in currentField.cardTemplate" :key="sub.id">
+                                            <div class="composite-row">
+                                                <label class="sub-label">
+                                                    <span x-text="sub.label"></span>
+                                                    <span class="required-mark" x-show="sub.required">*</span>
+                                                </label>
+                                                <div class="sub-body">
+                                                    <template x-if="['text','email','tel','url'].includes(sub.type)">
+                                                        <input class="input" :type="sub.type === 'text' ? 'text' : sub.type"
+                                                               :placeholder="sub.placeholder || ''" x-model="card[sub.id]" />
+                                                    </template>
+                                                    <template x-if="sub.type === 'textarea'">
+                                                        <textarea class="input textarea" rows="3"
+                                                                  :placeholder="sub.placeholder || ''"
+                                                                  x-model="card[sub.id]"></textarea>
+                                                    </template>
+                                                    <template x-if="sub.type === 'number'">
+                                                        <input class="input" type="number"
+                                                               :placeholder="sub.placeholder || ''"
+                                                               x-model.number="card[sub.id]" />
+                                                    </template>
+                                                    <template x-if="sub.type === 'switch'">
+                                                        <label class="switch">
+                                                            <input type="checkbox" x-model="card[sub.id]" />
+                                                            <span class="switch-slider"></span>
+                                                            <span class="switch-text" x-text="card[sub.id] ? '是' : '否'"></span>
+                                                        </label>
+                                                    </template>
+                                                    <template x-if="sub.type === 'radio'">
+                                                        <div class="radio-group">
+                                                            <template x-for="opt in sub.options" :key="opt">
+                                                                <label class="radio-pill">
+                                                                    <input type="radio"
+                                                                           :name="currentField.id+'_'+ci+'_'+sub.id" :value="opt"
+                                                                           x-model="card[sub.id]" />
+                                                                    <span x-text="opt"></span>
+                                                                </label>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="sub.type === 'select'">
+                                                        <select class="input" x-model="card[sub.id]">
+                                                            <option value="">请选择</option>
+                                                            <!-- 子字段联动:bindsTo 取自其他节点(如节点 40 子字段 workflowNode 取节点 28) -->
+                                                            <template x-for="opt in (sub.bindsTo ? linkedOptions(sub.bindsTo) : sub.options)" :key="opt">
+                                                                <option :value="opt" x-text="opt"></option>
+                                                            </template>
+                                                        </select>
+                                                    </template>
+                                                    <template x-if="sub.type === 'multi-select'">
+                                                        <div class="checkbox-group">
+                                                            <template x-for="opt in sub.options" :key="opt">
+                                                                <label class="check-pill">
+                                                                    <input type="checkbox" :value="opt" x-model="card[sub.id]" />
+                                                                    <span x-text="opt"></span>
+                                                                </label>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="sub.type === 'date'">
+                                                        <input class="input" type="date" x-model="card[sub.id]" />
+                                                    </template>
+                                                    <template x-if="sub.type === 'tag-input'">
+                                                        <div class="tag-input" x-data="{ buf: '' }">
+                                                            <div class="tag-list">
+                                                                <template x-for="(tag, ti) in card[sub.id]" :key="ti">
+                                                                    <span class="tag">
+                                                                        <span x-text="tag"></span>
+                                                                        <button type="button" class="tag-x"
+                                                                                @click="removeTag(card[sub.id], ti)">×</button>
+                                                                    </span>
+                                                                </template>
+                                                                <input class="tag-buf" x-model="buf"
+                                                                       :placeholder="sub.placeholder || '回车添加'"
+                                                                       @keydown.enter.prevent="addTag(card[sub.id], buf); buf=''" />
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="sub.type === 'country-select'">
+                                                        <select class="input" x-model="card[sub.id]">
+                                                            <option value="">请选择国家</option>
+                                                            <template x-for="c in countryOptions()" :key="c.code">
+                                                                <option :value="c.code" x-text="c.zh + ' / ' + c.en"></option>
+                                                            </template>
+                                                        </select>
+                                                    </template>
+                                                    <template x-if="sub.type === 'file'">
+                                                        <div class="file-uploader">
+                                                            <label class="file-drop">
+                                                                <input type="file"
+                                                                       :accept="(sub.accept||[]).map(e=>'.'+e).join(',')"
+                                                                       :multiple="sub.multiple || false"
+                                                                       @change="uploadIntoCard(currentField, ci, sub.id, sub.multiple, sub.accept, sub.maxSize, $event)" />
+                                                                <span class="file-drop-text">点击上传</span>
+                                                                <span class="file-drop-meta"
+                                                                      x-text="`允许:${(sub.accept||[]).join('/')} · 最大 ${formatSize(sub.maxSize)}`"></span>
+                                                            </label>
+                                                            <template x-if="sub.multiple && Array.isArray(card[sub.id])">
+                                                                <ul class="file-list">
+                                                                    <template x-for="(ref, fi) in card[sub.id]" :key="ref.ref">
+                                                                        <li class="file-item">
+                                                                            <span class="file-name" x-text="ref.name"></span>
+                                                                            <span class="file-size" x-text="formatSize(ref.size)"></span>
+                                                                            <button type="button" class="link" @click="previewFile(ref)">预览</button>
+                                                                            <button type="button" class="link danger"
+                                                                                    @click="removeFileFromList(card[sub.id], fi)">删除</button>
+                                                                        </li>
+                                                                    </template>
+                                                                </ul>
+                                                            </template>
+                                                            <template x-if="!sub.multiple && isFileRef(card[sub.id])">
+                                                                <div class="file-item single">
+                                                                    <span class="file-name" x-text="card[sub.id].name"></span>
+                                                                    <span class="file-size" x-text="formatSize(card[sub.id].size)"></span>
+                                                                    <button type="button" class="link" @click="previewFile(card[sub.id])">预览</button>
+                                                                    <button type="button" class="link danger"
+                                                                            @click="clearFileRef(card, sub.id)">删除</button>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <button type="button" class="btn-add"
+                                        @click="addCardItem(currentField.id)"
+                                        x-text="`+ 添加(已 ${values[currentField.id].length}${currentField.max ? '/' + currentField.max : ''})`"></button>
+                            </div>
+                        </template>
+
+                        <!-- ========== tag-multi-with-attachment + cert-grid(节点 12/13/14) ========== -->
+                        <template x-if="['tag-multi-with-attachment','cert-grid'].includes(currentField.component)">
+                            <div class="cert-grid"
+                                 x-data="{ customBuf: '' }">
+                                <div class="cert-tag-row">
+                                    <template x-for="opt in currentField.presetTags" :key="opt">
+                                        <button type="button" class="cert-tag"
+                                                :class="{ selected: isCertSelected(currentField.id, opt) }"
+                                                @click="toggleCertSelected(currentField.id, opt)">
+                                            <span x-text="opt"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="currentField.customizable">
+                                        <div class="cert-add">
+                                            <input class="input small" x-model="customBuf"
+                                                   placeholder="自定义新增,回车添加"
+                                                   @keydown.enter.prevent="addCustomCert(currentField.id, customBuf); customBuf=''" />
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="cert-items">
+                                    <template x-for="item in values[currentField.id]" :key="item.key">
+                                        <div class="cert-item">
+                                            <div class="cert-item-head">
+                                                <strong x-text="item.key"></strong>
+                                                <button type="button" class="link danger"
+                                                        @click="toggleCertSelected(currentField.id, item.key)">取消</button>
+                                            </div>
+                                            <template x-for="ifld in currentField.itemFields" :key="ifld.id">
+                                                <div class="composite-row">
+                                                    <label class="sub-label">
+                                                        <span x-text="ifld.label"></span>
+                                                        <span class="required-mark" x-show="ifld.required">*</span>
+                                                    </label>
+                                                    <div class="sub-body">
+                                                        <template x-if="['text'].includes(ifld.type)">
+                                                            <input class="input" :placeholder="ifld.placeholder || ''"
+                                                                   x-model="item[ifld.id]" />
+                                                        </template>
+                                                        <template x-if="ifld.type === 'year'">
+                                                            <input class="input" type="number" min="1900" max="2026"
+                                                                   x-model.number="item[ifld.id]" />
+                                                        </template>
+                                                        <template x-if="ifld.type === 'date'">
+                                                            <input class="input" type="date" x-model="item[ifld.id]" />
+                                                        </template>
+                                                        <template x-if="ifld.type === 'file'">
+                                                            <div class="file-uploader">
+                                                                <label class="file-drop">
+                                                                    <input type="file"
+                                                                           :accept="(ifld.accept||[]).map(e=>'.'+e).join(',')"
+                                                                           @change="uploadIntoCertItem(currentField, item.key, ifld.id, $event)" />
+                                                                    <span class="file-drop-text">点击上传</span>
+                                                                    <span class="file-drop-meta"
+                                                                          x-text="`允许:${(ifld.accept||[]).join('/')} · 最大 ${formatSize(ifld.maxSize)}`"></span>
+                                                                </label>
+                                                                <template x-if="isFileRef(item[ifld.id])">
+                                                                    <div class="file-item single">
+                                                                        <span class="file-name" x-text="item[ifld.id].name"></span>
+                                                                        <button type="button" class="link"
+                                                                                @click="previewFile(item[ifld.id])">预览</button>
+                                                                        <button type="button" class="link danger"
+                                                                                @click="clearFileRef(item, ifld.id)">删除</button>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ========== matrix-2d(节点 29) ========== -->
+                        <template x-if="currentField.component === 'matrix-2d'">
+                            <div class="matrix">
+                                <template x-if="matrixCols(currentField).length === 0">
+                                    <p class="empty-hint">请先在「节点 18 核心爆款产品」中至少填好 1 款产品,然后回到这里填矩阵。</p>
+                                </template>
+                                <template x-if="matrixCols(currentField).length > 0">
+                                    <table class="matrix-table">
+                                        <thead>
+                                            <tr>
+                                                <th x-text="currentField.rowsLabel"></th>
+                                                <template x-for="col in matrixCols(currentField)" :key="col">
+                                                    <th x-text="col"></th>
+                                                </template>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="row in currentField.rowOptions" :key="row">
+                                                <tr>
+                                                    <th x-text="row"></th>
+                                                    <template x-for="col in matrixCols(currentField)" :key="col">
+                                                        <td>
+                                                            <label class="matrix-toggle">
+                                                                <input type="checkbox"
+                                                                       :checked="!!getMatrixCell(currentField.id, row, col)"
+                                                                       @change="toggleMatrixCell(currentField.id, row, col)" />
+                                                            </label>
+                                                            <template x-if="!!getMatrixCell(currentField.id, row, col)">
+                                                                <textarea class="input textarea matrix-cell-input" rows="2"
+                                                                          :placeholder="currentField.cellField.label"
+                                                                          :value="getMatrixCell(currentField.id, row, col)[currentField.cellField.id] || ''"
+                                                                          @input="setMatrixCell(currentField.id, row, col, currentField.cellField.id, $event.target.value)"></textarea>
+                                                            </template>
+                                                        </td>
+                                                    </template>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- ========== multi-select-with-detail(节点 36) ========== -->
+                        <template x-if="currentField.component === 'multi-select-with-detail'">
+                            <div class="msd">
+                                <template x-for="opt in currentField.options" :key="opt.key">
+                                    <div class="msd-row">
+                                        <label class="check-pill">
+                                            <input type="checkbox"
+                                                   :checked="afterSalesSelected(currentField.id, opt.key)"
+                                                   @change="toggleAfterSales(currentField.id, opt.key)" />
+                                            <span x-text="opt.label"></span>
+                                        </label>
+                                        <template x-if="afterSalesSelected(currentField.id, opt.key)">
+                                            <input class="input small"
+                                                   :placeholder="opt.detailLabel"
+                                                   x-model="values[currentField.id][opt.key].detail" />
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- ========== category-tree(节点 15) - 简化为多行文本+逗号分隔 ========== -->
+                        <template x-if="currentField.component === 'category-tree'">
+                            <div class="category-tree">
+                                <textarea class="input textarea" rows="3"
+                                          placeholder="每行一项三级类目,如:金属与金属制品 > 不锈钢制品 > 不锈钢卷材"
+                                          :value="(values[currentField.id] || []).join('\n')"
+                                          @input="values[currentField.id] = $event.target.value.split('\n').map(s=>s.trim()).filter(Boolean)"></textarea>
+                                <p class="hint">至少 1 行三级类目(含两个 > )</p>
+                            </div>
+                        </template>
+
+                        <!-- ========== cascade-region(顶层不出现,只在 composite 内) ========== -->
+                    </div>
+
+                    <div class="question-error" x-show="currentError" x-text="currentError"></div>
+                </section>
+            </template>
+
+            <nav class="question-nav">
+                <button type="button" class="btn" @click="prev()" :disabled="!canPrev || generating">上一题</button>
+                <button type="button" class="btn primary" @click="next()" x-show="!isLast" :disabled="generating">下一题</button>
+                <button type="button" class="btn primary" @click="finish()" x-show="isLast" :disabled="generating">
+                    <span x-show="!generating">完成填写并生成 PDF + ZIP</span>
+                    <span x-show="generating" x-text="generateProgress || '生成中…'"></span>
+                </button>
+            </nav>
+        </main>
+
+        <!-- 草稿恢复弹窗 -->
+        <div class="resume-modal" x-show="showResumeModal" x-cloak>
+            <div class="modal-backdrop" @click="discardDraft()"></div>
+            <div class="modal-card">
+                <h3>检测到未完成的草稿</h3>
+                <p>
+                    上次保存于 <strong x-text="resumeInfo.savedAt"></strong>,已完成
+                    <strong x-text="`${resumeInfo.completed}/${totalCount}`"></strong> 题。
+                </p>
+                <div class="modal-actions">
+                    <button type="button" class="btn" @click="discardDraft()">重新开始</button>
+                    <button type="button" class="btn primary" @click="resumeDraft()">继续填写</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- toast -->
+        <div class="toast" x-show="toast" x-text="toast" x-transition></div>
+    </div>
+</body>
+</html>
