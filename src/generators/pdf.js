@@ -1,4 +1,4 @@
-// PDF 生成:跨迅科技 B2B 视频服务立项资料表。
+// PDF 生成:智贸出海 B2B 视频服务立项资料表。
 // pdf-lib + fontkit 嵌入中文字体(思源黑体子集);若字体缺失则中止并提示用户。
 //
 // 版式:封面页 → 目录页 → 7 阶段内容页(每阶段 H1 + 字段 H2 + 内容)→ 附件清单页。
@@ -404,7 +404,7 @@ export async function buildPdf(values, manifest, companyZh) {
 
     // ---- 封面 ----
     d.y = PAGE.height - 220;
-    d.drawText('跨迅科技', { size: 28, bold: true, color: COLOR.primary });
+    d.drawText('智贸出海', { size: 28, bold: true, color: COLOR.primary });
     d.space(12);
     d.drawText('B2B 视频服务立项资料表', { size: FONT_SIZE.title, bold: true });
     d.space(40);
@@ -459,7 +459,7 @@ export async function buildPdf(values, manifest, companyZh) {
             size: FONT_SIZE.small,
             font, color: rgbColor(COLOR.soft),
         });
-        p.drawText('跨迅科技 · B2B 视频服务立项资料表', {
+        p.drawText('智贸出海 · B2B 视频服务立项资料表', {
             x: MARGIN.left, y: 28,
             size: FONT_SIZE.small, font, color: rgbColor(COLOR.soft),
         });
