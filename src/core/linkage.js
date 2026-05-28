@@ -3,7 +3,7 @@
 // 自动扫描目标字段并删除已不存在的引用值。
 //
 // 大部分联动是"读时即时"通过 store.linkedOptions / store.matrixCols 实现,
-// 这里只处理"写时清理":避免选过的项变孤儿后还卡在数据里、最终塞进 PDF。
+// 这里只处理"写时清理":避免选过的项变孤儿后还卡在数据里、最终塞进 Markdown。
 
 import { FIELDS } from '../config/fields.js';
 

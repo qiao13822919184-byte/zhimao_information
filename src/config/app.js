@@ -3,9 +3,8 @@ export const APP_CONFIG = {
     fileStoreName: 'chuangrui_files_v1',
     draftMaxAgeDays: 30,
     autoSaveDebounceMs: 5000,
-    pdf: {
-        fontPath: 'assets/fonts/NotoSansSC-Regular-subset.otf',
-        fileNamePattern: '智贸出海_{companyZh}_{YYYYMMDD}.pdf',
+    markdown: {
+        fileNamePattern: '智贸出海_{companyZh}_{YYYYMMDD}.md',
     },
     zip: {
         fileNamePattern: '智贸出海附件_{companyZh}_{YYYYMMDD}.zip',

@@ -110,7 +110,7 @@ function* walkRefSub(parentField, val, sub, path) {
 }
 
 // 主入口:遍历所有字段,把文件按阶段子目录写入 zip。
-// 返回 { manifest: [], totalFiles, totalBytes } 供 PDF 附件清单页使用。
+// 返回 { manifest: [], totalFiles, totalBytes } 供 Markdown 附件清单页使用。
 export async function buildZip(values, companyZh) {
     if (!window.JSZip) throw new Error('JSZip 未加载');
     const zip = new window.JSZip();

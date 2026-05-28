@@ -13,7 +13,7 @@ import { COUNTRIES } from '../config/countries.js';
 import { validateField, validateAll } from './validation.js';
 import { attachLinkageWatchers, pruneOrphans } from './linkage.js';
 import { buildZip, downloadBlob } from '../generators/zip.js';
-import { buildPdf } from '../generators/pdf.js';
+import { buildMarkdown } from '../generators/markdown.js';
 
 function emptyValueFor(field) {
     switch (field.component) {
@@ -249,7 +249,7 @@ export function createApp() {
             this.generateOutputs();
         },
 
-        // ---- M4:PDF + ZIP 生成 ----
+        // ---- M4:Markdown + ZIP 生成 ----
         generating: false,
         generateProgress: '',
         async generateOutputs() {
@@ -259,27 +259,23 @@ export function createApp() {
             try {
                 const companyZh = this.values['node1_companyNameZh'] || '客户';
 
-                // 1) ZIP(同时拿到 manifest 给 PDF 用)
+                // 1) ZIP(同时拿到 manifest 给 Markdown 用)
                 const zipResult = await buildZip(this.values, companyZh);
-                this.generateProgress = '正在生成 PDF 立项资料表…';
+                this.generateProgress = '正在生成 Markdown 立项资料表…';
 
-                // 2) PDF
-                const pdfResult = await buildPdf(this.values, zipResult.manifest, companyZh);
+                // 2) Markdown
+                const mdResult = await buildMarkdown(this.values, zipResult.manifest, companyZh);
                 this.generateProgress = '准备下载…';
 
                 // 3) 下载(分两次以避免某些浏览器只触发第一次)
-                downloadBlob(pdfResult.blob, pdfResult.fileName);
+                downloadBlob(mdResult.blob, mdResult.fileName);
                 setTimeout(() => downloadBlob(zipResult.blob, zipResult.fileName), 600);
 
-                this.showToast(`已生成:${pdfResult.fileName} + ${zipResult.fileName}`, 6000);
+                this.showToast(`已生成:${mdResult.fileName} + ${zipResult.fileName}`, 6000);
             } catch (e) {
                 console.error(e);
                 const msg = String(e?.message || e);
-                if (msg.includes('字体加载失败') || msg.includes('字体')) {
-                    this.showToast(`PDF 生成失败:中文字体未就绪。请确认 assets/fonts/ 下已放置思源黑体子集。详见 README。`, 8000);
-                } else {
-                    this.showToast(`生成失败:${msg}`, 6000);
-                }
+                this.showToast(`生成失败:${msg}`, 6000);
             } finally {
                 this.generating = false;
                 this.generateProgress = '';

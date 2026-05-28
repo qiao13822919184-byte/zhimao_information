@@ -299,7 +299,7 @@ export function validateField(field, value, allValues) {
     }
 }
 
-// 校验整个表单(供生成 PDF 前最终检查使用)
+// 校验整个表单(供生成 Markdown 前最终检查使用)
 export function validateAll(fields, values) {
     const errors = [];
     for (const f of fields) {
